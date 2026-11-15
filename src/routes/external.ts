@@ -117,6 +117,8 @@ externalRouter.post(
             asnNumber: mapped.data.asnNumber,
             notes: mapped.data.notes ?? null,
             status: mapped.data.status,
+            source: "API",
+            externalRef: mapped.data.asnNumber,
             expectedAt: mapped.data.expectedAt
               ? new Date(mapped.data.expectedAt)
               : null,
@@ -148,6 +150,8 @@ externalRouter.post(
           orderNumber: mapped.data.orderNumber,
           notes: mapped.data.notes ?? null,
           status: mapped.data.status,
+          source: "API",
+          externalRef: mapped.data.orderNumber,
           lines: {
             create: mapped.data.lines.map((l) => ({
               skuId: l.skuId,

@@ -1,13 +1,13 @@
 # RforRee
 
-Warehouse Management System (WMS) — location master data, multi-dimensional inventory ledger, and inbound/outbound order flows.
+Warehouse Management System (WMS) — location master data, multi-dimensional inventory ledger, inbound/outbound flows, offline sync APIs, and a Vue floor console.
 
 ## Stack
 
-- **Node.js** + **TypeScript**
-- **Express** REST API
-- **PostgreSQL** via **Prisma** ORM
-- **Zod** request validation
+- **Node.js** + **TypeScript** + **Express** REST API
+- **PostgreSQL** via **Prisma** ORM + **Zod** validation
+- **Vue 3** + **Vite** + **Tailwind CSS** + **Pinia** (`web/`)
+- **Docker Compose** Testing Site (Postgres + API + nginx UI)
 
 ## Domain model
 
@@ -64,6 +64,14 @@ Requires API key scopes `sync:pull` / `sync:push`.
 
 Auth: header `X-Api-Key: wms_…` or `Authorization: Bearer wms_…`.
 
+### Phase 6 — Web UI
+
+Vue console in `web/` with sidebar: Dashboard, Master Data, Inbound, Outbound, Inventory (balances + ledger). Station login selects Client / Warehouse; Axios talks to the Phase 1–5 APIs. Barcode fields accept keyboard-wedge scanners.
+
+### Phase 7 — Testing Site
+
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for Docker one-shot stack, LAN Android testing, and cloud env notes. Compose services: `postgres`, `api` (:3000), `web` (:8080, proxies `/api`).
+
 ## Prerequisites
 
 - Node.js 20+
@@ -90,13 +98,20 @@ npx prisma generate
 
 For iterative schema work during development, use `npm run prisma:migrate` instead of `migrate deploy`.
 
-### 3. Start the API
+### 3. Start the API + UI
 
 ```bash
-npm run dev
+npm run dev          # API http://localhost:3000
+npm run dev:web      # UI  http://localhost:5173 (proxies /api)
 ```
 
-API listens on `http://localhost:3000` (override with `PORT`). Health: `GET /health`.
+Or full Testing Site:
+
+```bash
+npm run stack:up     # UI http://localhost:8080  API :3000  Postgres :5432
+```
+
+Health: `GET /health`.
 
 ## API overview
 
@@ -125,12 +140,17 @@ Base path: `/api`
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET/POST /inbound-orders` | List / create ASN orders (with lines) |
-| `GET/PATCH/DELETE /inbound-orders/:id` | Detail / update / delete (DRAFT\|CANCELLED only) |
-| `POST /inbound-orders/:id/receive` | Validate ASN + put-away; body: `{ asnNumber, lines: [{ lineId, binId, quantity, lotNumber?, expiryDate?, manufactureDate? }] }` |
-| `GET/POST /outbound-orders` | List / create shipping orders |
-| `GET/PATCH/DELETE /outbound-orders/:id` | Detail / update / delete (DRAFT\|CANCELLED only) |
-| `POST /outbound-orders/:id/ship` | FIFO-by-ED deduct; optional `{ lines: [{ lineId, quantity? }] }` (defaults to remaining qty) |
+| `GET/POST /inbound-orders` | List / create ASN orders (with lines); filter `?source=API\|IMPORT\|MANUAL` |
+| `GET/PATCH/DELETE /inbound-orders/:id` | **Detail** includes progress + handheld activity + ledger; PATCH edits header/lines |
+| `GET /inbound-orders/import/template` | Download Excel template |
+| `POST /inbound-orders/import` | Multipart Excel import (`file` + `clientId`) → `source=IMPORT` |
+| `POST /inbound-orders/:id/receive` | Validate ASN + put-away |
+| `GET/POST /outbound-orders` | List / create ship orders (+ source filter) |
+| `GET/PATCH /outbound-orders/:id` | Detail with pick/ship progress + handheld activity; editable lines |
+| `GET/POST …/outbound-orders/import(/template)` | Excel template + import (`source=IMPORT`) |
+| `POST /outbound-orders/:id/ship` | FIFO-by-ED deduct |
+
+External API creates set `source=API` so desktop lists show ERP/EDI orders.
 
 Dates for ED/MD use `YYYY-MM-DD`. Insufficient stock / over-receive return **409**. ASN mismatch returns **400** with `ASN_MISMATCH`.
 
@@ -200,16 +220,10 @@ curl -s -X POST http://localhost:3000/api/v1/external/orders \
 ## Project layout
 
 ```
-prisma/schema.prisma          # Data model
-prisma/migrations/            # SQL migrations
-src/app.ts                    # Express app
-src/services/inventory.ts     # Shared inventory engine
-src/services/inbound.ts       # ASN receive
-src/services/outbound.ts      # FIFO ship
-src/services/sync.ts          # Offline pull/push
-src/adapters/                 # External / EDI adapters
-src/middleware/apiKeyAuth.ts  # API key gate
-src/routes/                   # REST routers
-src/schemas/                  # Zod validators
-docker-compose.yml            # Local Postgres
+prisma/                       # Schema + migrations
+src/                          # Express API
+web/                          # Vue 3 floor console
+docker-compose.yml            # Postgres + API + Web
+Dockerfile                    # API image
+DEPLOYMENT.md                 # LAN / cloud testing guide
 ```

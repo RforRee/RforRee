@@ -21,6 +21,8 @@ export const createInboundOrderSchema = z.object({
   notes: z.string().trim().max(2000).optional().nullable(),
   expectedAt: z.string().datetime().optional().nullable(),
   status: z.enum(["DRAFT", "OPEN"]).optional(),
+  source: z.enum(["MANUAL", "API", "IMPORT"]).optional(),
+  externalRef: z.string().trim().max(128).optional().nullable(),
   lines: z
     .array(
       z.object({
@@ -38,6 +40,20 @@ export const updateInboundOrderSchema = z.object({
   notes: z.string().trim().max(2000).optional().nullable(),
   expectedAt: z.string().datetime().optional().nullable(),
   status: z.enum(["DRAFT", "OPEN", "CANCELLED"]).optional(),
+  externalRef: z.string().trim().max(128).optional().nullable(),
+  lines: z
+    .array(
+      z.object({
+        id: z.string().cuid().optional(),
+        skuId: z.string().cuid().optional(),
+        expectedQty: qtySchema.optional(),
+        lotNumber: z.string().trim().max(128).optional().nullable(),
+        expiryDate: dateOnlySchema,
+        manufactureDate: dateOnlySchema,
+        _delete: z.boolean().optional(),
+      }),
+    )
+    .optional(),
 });
 
 export const receiveInboundSchema = z.object({
@@ -58,4 +74,8 @@ export const receiveInboundSchema = z.object({
 
 export const inboundIdParamSchema = z.object({
   id: z.string().cuid(),
+});
+
+export const inboundImportQuerySchema = z.object({
+  clientId: z.string().cuid(),
 });
