@@ -23,6 +23,8 @@ model Client {
   inventoryTransactions  InventoryTransaction[]
   inboundOrders          InboundOrder[]
   outboundOrders         OutboundOrder[]
+  apiKeys                ApiKey[]
+  syncMutationReceipts   SyncMutationReceipt[]
 }
 
 /// Physical warehouse belonging to a client.
@@ -260,4 +262,55 @@ model OutboundOrderLine {
 
   @@index([outboundOrderId])
   @@index([skuId])
+}
+
+/// External / device API credentials (store hash only; plaintext shown once at creation).
+model ApiKey {
+  id         String    @id @default(cuid())
+  clientId   String
+  name       String
+  /// First 8 characters of the raw key for ops lookup.
+  keyPrefix  String
+  keyHash    String    @unique
+  /// Scopes e.g. sync:pull, sync:push, external:orders, external:inventory
+  scopes     String[]
+  isActive   Boolean   @default(true)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([keyPrefix])
+}
+
+enum SyncMutationStatus {
+  ACCEPTED
+  REJECTED
+  CONFLICT
+  DUPLICATE
+}
+
+/// Idempotent receipt for handheld offline mutation queue items.
+model SyncMutationReceipt {
+  id               String              @id @default(cuid())
+  clientId         String
+  deviceId         String
+  warehouseId      String?
+  clientMutationId String
+  mutationType     String
+  status           SyncMutationStatus
+  conflictCode     String?
+  message          String?
+  serverEntityId   String?
+  payload          Json
+  result           Json?
+  createdAt        DateTime            @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, deviceId, clientMutationId])
+  @@index([clientId, createdAt])
+  @@index([deviceId])
 }

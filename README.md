@@ -39,6 +39,31 @@ All stock changes go through `InventoryService`: write transaction **first**, th
 | **InboundOrder** + lines | ASN unique per client. `POST …/receive` validates ASN, put-away to bin, writes inbound txns. |
 | **OutboundOrder** + lines | Order number unique per client. `POST …/ship` allocates FIFO by **expiry date (ED)** within the warehouse, then deducts. |
 
+### Phase 4 — offline sync foundation
+
+API-first sync for Android / PWA handhelds (Barcode/RFID, non-WiFi):
+
+| Piece | Role |
+|-------|------|
+| `POST /api/sync/pull` | Download SKU + Bin/Zone master, pending inbound/outbound tasks, and on-hand balances for a warehouse |
+| `POST /api/sync/push` | Batch-apply offline **mutation queue** (`RECEIVE` / `SHIP` / `TRANSFER` / `ADJUST`) with idempotency + conflict detection |
+| `SyncMutationReceipt` | Server-side receipt keyed by `(clientId, deviceId, clientMutationId)` |
+
+**Client strategy (not shipped in this repo yet):** persist pull payload in SQLite / WatermelonDB / IndexedDB; enqueue local mutations while offline; batch `push` when back online. Conflicts (e.g. `INSUFFICIENT_INVENTORY`) return status `CONFLICT` (HTTP **207** if mixed).
+
+Requires API key scopes `sync:pull` / `sync:push`.
+
+### Phase 5 — external integration layer
+
+| Piece | Role |
+|-------|------|
+| `ApiKey` | SHA-256 hashed keys; scopes `external:inventory`, `external:orders`, `sync:*`, or `*` |
+| `POST /api/v1/external/inventory-query` | ERP-friendly inventory lookup by **codes** (not internal IDs) |
+| `POST /api/v1/external/orders` | Create inbound (ASN / EDI_943) or outbound (SHIP_ORDER / EDI_940) via **Adapter** |
+| `OrderAdapter` / `InventoryQueryAdapter` | Map external JSON → internal schema; `Edi940943Adapter` stub for future EDI |
+
+Auth: header `X-Api-Key: wms_…` or `Authorization: Bearer wms_…`.
+
 ## Prerequisites
 
 - Node.js 20+
@@ -109,6 +134,19 @@ Base path: `/api`
 
 Dates for ED/MD use `YYYY-MM-DD`. Insufficient stock / over-receive return **409**. ASN mismatch returns **400** with `ASN_MISMATCH`.
 
+### Sync & external APIs
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `POST /api-keys` | (ops) | Create key — plaintext returned **once** |
+| `GET /api-keys?clientId=` | (ops) | List key metadata (no secrets) |
+| `DELETE /api-keys/:id` | (ops) | Deactivate key |
+| `POST /sync/pull` | `sync:pull` | Handheld master + task download |
+| `POST /sync/push` | `sync:push` | Offline mutation queue batch |
+| `POST /v1/external/inventory-query` | `external:inventory` | Query on-hand by partner codes |
+| `POST /v1/external/orders` | `external:orders` | Create orders via adapter |
+| `GET /v1/external/orders` | `external:orders` | List recent orders for key's client |
+
 ### Examples
 
 ```bash
@@ -127,6 +165,25 @@ curl -s -X POST http://localhost:3000/api/inbound-orders/ORDER_ID/receive \
 # Ship remaining lines with FIFO by expiry date
 curl -s -X POST http://localhost:3000/api/outbound-orders/OUT_ID/ship \
   -H 'content-type: application/json' -d '{}'
+
+# Issue an API key for handheld / ERP
+curl -s -X POST http://localhost:3000/api/api-keys \
+  -H 'content-type: application/json' \
+  -d '{"clientId":"CLIENT_ID","name":"android-1","scopes":["*"]}'
+
+# Sync pull (Android)
+curl -s -X POST http://localhost:3000/api/sync/pull \
+  -H "x-api-key: $API_KEY" -H 'content-type: application/json' \
+  -d '{"clientId":"CLIENT_ID","warehouseId":"WH_ID"}'
+
+# External ASN create (ERP / EDI-shaped JSON)
+curl -s -X POST http://localhost:3000/api/v1/external/orders \
+  -H "x-api-key: $API_KEY" -H 'content-type: application/json' \
+  -d '{
+    "documentType":"ASN","format":"json",
+    "order":{"clientCode":"ACME","warehouseCode":"WH1","documentNumber":"ASN-99",
+      "lines":[{"skuCode":"SKU-100","quantity":5,"expiryDate":"2027-01-15"}]}
+  }'
 ```
 
 ## Scripts
@@ -149,6 +206,9 @@ src/app.ts                    # Express app
 src/services/inventory.ts     # Shared inventory engine
 src/services/inbound.ts       # ASN receive
 src/services/outbound.ts      # FIFO ship
+src/services/sync.ts          # Offline pull/push
+src/adapters/                 # External / EDI adapters
+src/middleware/apiKeyAuth.ts  # API key gate
 src/routes/                   # REST routers
 src/schemas/                  # Zod validators
 docker-compose.yml            # Local Postgres
