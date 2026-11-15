@@ -69,6 +69,8 @@ export type InventoryTransaction = {
   referenceId?: string | null
   notes?: string | null
   createdAt: string
+  sku?: { code: string; name: string }
+  bin?: { code: string; barcode?: string | null }
 }
 
 export type InboundOrderLine = {
@@ -80,6 +82,7 @@ export type InboundOrderLine = {
   lotNumber: string
   expiryDate?: string | null
   manufactureDate?: string | null
+  sku?: Sku
 }
 
 export type InboundOrder = {
@@ -88,11 +91,16 @@ export type InboundOrder = {
   warehouseId: string
   asnNumber: string
   status: string
+  source?: string
+  externalRef?: string | null
   notes?: string | null
   expectedAt?: string | null
   completedAt?: string | null
   createdAt: string
+  updatedAt?: string
   lines: InboundOrderLine[]
+  warehouse?: Pick<Warehouse, 'id' | 'code' | 'name'>
+  client?: Pick<Client, 'id' | 'code' | 'name'>
 }
 
 export type OutboundOrderLine = {
@@ -102,6 +110,7 @@ export type OutboundOrderLine = {
   requestedQty: string
   shippedQty: string
   lotNumber?: string | null
+  sku?: Sku
 }
 
 export type OutboundOrder = {
@@ -110,8 +119,58 @@ export type OutboundOrder = {
   warehouseId: string
   orderNumber: string
   status: string
+  source?: string
+  externalRef?: string | null
   notes?: string | null
   shippedAt?: string | null
   createdAt: string
+  updatedAt?: string
   lines: OutboundOrderLine[]
+  warehouse?: Pick<Warehouse, 'id' | 'code' | 'name'>
+  client?: Pick<Client, 'id' | 'code' | 'name'>
+}
+
+export type SyncMutationReceipt = {
+  id: string
+  deviceId: string
+  mutationType: string
+  status: string
+  conflictCode?: string | null
+  message?: string | null
+  serverEntityId?: string | null
+  createdAt: string
+  payload?: unknown
+}
+
+export type InboundOrderDetail = {
+  order: InboundOrder
+  progress: {
+    expectedQty: number
+    receivedQty: number
+    percent: number
+    lineCount: number
+    completedLines: number
+  }
+  transactions: InventoryTransaction[]
+  handheldActivity: SyncMutationReceipt[]
+}
+
+export type OutboundOrderDetail = {
+  order: OutboundOrder
+  progress: {
+    requestedQty: number
+    shippedQty: number
+    percent: number
+    lineCount: number
+    completedLines: number
+  }
+  transactions: InventoryTransaction[]
+  handheldActivity: SyncMutationReceipt[]
+}
+
+export type ImportResult = {
+  createdCount: number
+  errorCount: number
+  orders: Array<InboundOrder | OutboundOrder>
+  errors: Array<{ asnNumber?: string; orderNumber?: string; error: string }>
 }

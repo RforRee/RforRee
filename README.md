@@ -140,12 +140,17 @@ Base path: `/api`
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET/POST /inbound-orders` | List / create ASN orders (with lines) |
-| `GET/PATCH/DELETE /inbound-orders/:id` | Detail / update / delete (DRAFT\|CANCELLED only) |
-| `POST /inbound-orders/:id/receive` | Validate ASN + put-away; body: `{ asnNumber, lines: [{ lineId, binId, quantity, lotNumber?, expiryDate?, manufactureDate? }] }` |
-| `GET/POST /outbound-orders` | List / create shipping orders |
-| `GET/PATCH/DELETE /outbound-orders/:id` | Detail / update / delete (DRAFT\|CANCELLED only) |
-| `POST /outbound-orders/:id/ship` | FIFO-by-ED deduct; optional `{ lines: [{ lineId, quantity? }] }` (defaults to remaining qty) |
+| `GET/POST /inbound-orders` | List / create ASN orders (with lines); filter `?source=API\|IMPORT\|MANUAL` |
+| `GET/PATCH/DELETE /inbound-orders/:id` | **Detail** includes progress + handheld activity + ledger; PATCH edits header/lines |
+| `GET /inbound-orders/import/template` | Download Excel template |
+| `POST /inbound-orders/import` | Multipart Excel import (`file` + `clientId`) → `source=IMPORT` |
+| `POST /inbound-orders/:id/receive` | Validate ASN + put-away |
+| `GET/POST /outbound-orders` | List / create ship orders (+ source filter) |
+| `GET/PATCH /outbound-orders/:id` | Detail with pick/ship progress + handheld activity; editable lines |
+| `GET/POST …/outbound-orders/import(/template)` | Excel template + import (`source=IMPORT`) |
+| `POST /outbound-orders/:id/ship` | FIFO-by-ED deduct |
+
+External API creates set `source=API` so desktop lists show ERP/EDI orders.
 
 Dates for ED/MD use `YYYY-MM-DD`. Insufficient stock / over-receive return **409**. ASN mismatch returns **400** with `ASN_MISMATCH`.
 

@@ -30,9 +30,19 @@ const router = createRouter({
           component: () => import('@/views/InboundView.vue'),
         },
         {
+          path: 'inbound/:id',
+          name: 'inbound-detail',
+          component: () => import('@/views/InboundDetailView.vue'),
+        },
+        {
           path: 'outbound',
           name: 'outbound',
           component: () => import('@/views/OutboundView.vue'),
+        },
+        {
+          path: 'outbound/:id',
+          name: 'outbound-detail',
+          component: () => import('@/views/OutboundDetailView.vue'),
         },
         {
           path: 'inventory',

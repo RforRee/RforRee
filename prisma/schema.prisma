@@ -183,6 +183,9 @@ model InboundOrder {
   warehouseId String
   asnNumber   String
   status      InboundOrderStatus @default(DRAFT)
+  /// MANUAL | API | IMPORT
+  source      String             @default("MANUAL")
+  externalRef String?
   notes       String?
   expectedAt  DateTime?
   completedAt DateTime?
@@ -196,6 +199,7 @@ model InboundOrder {
   @@unique([clientId, asnNumber])
   @@index([warehouseId])
   @@index([status])
+  @@index([source])
 }
 
 model InboundOrderLine {
@@ -232,6 +236,9 @@ model OutboundOrder {
   warehouseId String
   orderNumber String
   status      OutboundOrderStatus @default(DRAFT)
+  /// MANUAL | API | IMPORT
+  source      String              @default("MANUAL")
+  externalRef String?
   notes       String?
   shippedAt   DateTime?
   createdAt   DateTime            @default(now())
@@ -244,6 +251,7 @@ model OutboundOrder {
   @@unique([clientId, orderNumber])
   @@index([warehouseId])
   @@index([status])
+  @@index([source])
 }
 
 model OutboundOrderLine {

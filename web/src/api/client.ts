@@ -2,10 +2,13 @@ import axios from 'axios'
 import type {
   Bin,
   Client,
+  ImportResult,
   InboundOrder,
+  InboundOrderDetail,
   InventoryBalance,
   InventoryTransaction,
   OutboundOrder,
+  OutboundOrderDetail,
   Sku,
   Warehouse,
   Zone,
@@ -15,14 +18,17 @@ const baseURL = import.meta.env.VITE_API_BASE_URL || ''
 
 export const api = axios.create({
   baseURL,
-  timeout: 20000,
-  headers: { 'Content-Type': 'application/json' },
+  timeout: 30000,
 })
 
 api.interceptors.request.use((config) => {
   const key = localStorage.getItem('wms_api_key')
-  if (key) {
-    config.headers['X-Api-Key'] = key
+  if (key) config.headers['X-Api-Key'] = key
+
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type']
+  } else if (config.data && !config.headers['Content-Type']) {
+    config.headers['Content-Type'] = 'application/json'
   }
   return config
 })
@@ -87,10 +93,17 @@ export const inventoryApi = {
 }
 
 export const inboundApi = {
-  list: (params?: { clientId?: string; warehouseId?: string; status?: string }) =>
-    api.get<InboundOrder[]>('/api/inbound-orders', { params }),
+  list: (params?: {
+    clientId?: string
+    warehouseId?: string
+    status?: string
+    source?: string
+  }) => api.get<InboundOrder[]>('/api/inbound-orders', { params }),
+  get: (id: string) => api.get<InboundOrderDetail>(`/api/inbound-orders/${id}`),
   create: (body: Record<string, unknown>) =>
     api.post<InboundOrder>('/api/inbound-orders', body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.patch<InboundOrderDetail>(`/api/inbound-orders/${id}`, body),
   receive: (
     id: string,
     body: {
@@ -105,15 +118,52 @@ export const inboundApi = {
       }>
     },
   ) => api.post(`/api/inbound-orders/${id}/receive`, body),
+  downloadTemplate: () =>
+    api.get<Blob>('/api/inbound-orders/import/template', {
+      responseType: 'blob',
+    }),
+  importExcel: (clientId: string, file: File) => {
+    const form = new FormData()
+    form.append('clientId', clientId)
+    form.append('file', file)
+    return api.post<ImportResult>('/api/inbound-orders/import', form)
+  },
 }
 
 export const outboundApi = {
-  list: (params?: { clientId?: string; warehouseId?: string; status?: string }) =>
-    api.get<OutboundOrder[]>('/api/outbound-orders', { params }),
+  list: (params?: {
+    clientId?: string
+    warehouseId?: string
+    status?: string
+    source?: string
+  }) => api.get<OutboundOrder[]>('/api/outbound-orders', { params }),
+  get: (id: string) =>
+    api.get<OutboundOrderDetail>(`/api/outbound-orders/${id}`),
   create: (body: Record<string, unknown>) =>
     api.post<OutboundOrder>('/api/outbound-orders', body),
+  update: (id: string, body: Record<string, unknown>) =>
+    api.patch<OutboundOrderDetail>(`/api/outbound-orders/${id}`, body),
   ship: (
     id: string,
     body?: { lines?: Array<{ lineId: string; quantity?: number | string }> },
   ) => api.post(`/api/outbound-orders/${id}/ship`, body ?? {}),
+  downloadTemplate: () =>
+    api.get<Blob>('/api/outbound-orders/import/template', {
+      responseType: 'blob',
+    }),
+  importExcel: (clientId: string, file: File) => {
+    const form = new FormData()
+    form.append('clientId', clientId)
+    form.append('file', file)
+    return api.post<ImportResult>('/api/outbound-orders/import', form)
+  },
+}
+
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
