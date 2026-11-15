@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #app {
+    min-height: 100%;
+  }
+
+  body {
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(232, 163, 23, 0.12), transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, rgba(31, 154, 132, 0.1), transparent 50%),
+      #0b1220;
+  }
+
+  ::selection {
+    background: rgba(232, 163, 23, 0.35);
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-white/10 bg-ink-900/80 shadow-panel backdrop-blur;
+  }
+
+  .field {
+    @apply w-full rounded-lg border-white/10 bg-ink-950/80 text-sm text-slate-100
+      placeholder:text-slate-500 focus:border-dock-400 focus:ring-dock-400/40;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold
+      transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-dock-400 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-dock-400 text-ink-950 hover:bg-dock-300;
+  }
+
+  .btn-secondary {
+    @apply btn border border-white/15 bg-ink-800 text-slate-100 hover:bg-ink-700;
+  }
+
+  .btn-danger {
+    @apply btn bg-rose-600 text-white hover:bg-rose-500;
+  }
+
+  .btn-success {
+    @apply btn bg-bay-500 text-white hover:bg-bay-400;
+  }
+
+  .table-wrap {
+    @apply overflow-auto rounded-xl border border-white/10;
+  }
+
+  .data-table {
+    @apply min-w-full divide-y divide-white/10 text-left text-sm;
+  }
+
+  .data-table th {
+    @apply sticky top-0 bg-ink-800 px-3 py-2 font-semibold uppercase tracking-wide text-slate-400;
+    font-size: 0.7rem;
+  }
+
+  .data-table td {
+    @apply px-3 py-2 align-middle text-slate-200;
+  }
+
+  .data-table tbody tr:nth-child(even) {
+    @apply bg-white/[0.02];
+  }
+
+  .data-table tbody tr:hover {
+    @apply bg-dock-400/5;
+  }
+
+  .mono {
+    @apply font-mono text-[0.8rem] tracking-tight;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold;
+  }
+}

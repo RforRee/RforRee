@@ -1,19 +1,23 @@
 {
   "name": "rforree",
   "version": "1.0.0",
-  "description": "Warehouse Management System (WMS) — Phase 1 location & SKU foundations",
+  "description": "Warehouse Management System (WMS) — API, sync, and Vue floor console",
   "private": true,
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:web": "npm --prefix web run dev",
     "build": "tsc",
+    "build:web": "npm --prefix web run build",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "db:up": "docker compose up -d",
-    "db:down": "docker compose down"
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "stack:up": "docker compose up -d --build",
+    "stack:down": "docker compose down"
   },
   "repository": {
     "type": "git",
