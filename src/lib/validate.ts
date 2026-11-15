@@ -4,6 +4,10 @@ import { Prisma } from "@prisma/client";
 
 type RequestPart = "body" | "query" | "params";
 
+export type ValidatedRequest = Request & {
+  validated?: Partial<Record<RequestPart, unknown>>;
+};
+
 export function validate(schema: ZodTypeAny, part: RequestPart = "body") {
   return (req: Request, res: Response, next: NextFunction): void => {
     const parsed = schema.safeParse(req[part]);
@@ -14,7 +18,16 @@ export function validate(schema: ZodTypeAny, part: RequestPart = "body") {
       });
       return;
     }
-    req[part] = parsed.data;
+
+    const vreq = req as ValidatedRequest;
+    vreq.validated = { ...vreq.validated, [part]: parsed.data };
+
+    // Express 5: req.query is a getter-only property — never assign it.
+    if (part === "body") {
+      req.body = parsed.data;
+    } else if (part === "params") {
+      req.params = parsed.data as Request["params"];
+    }
     next();
   };
 }

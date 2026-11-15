@@ -9,31 +9,37 @@ datasource db {
 
 /// Multi-tenant owner of warehouses and SKUs.
 model Client {
-  id          String      @id @default(cuid())
-  code        String      @unique
+  id          String   @id @default(cuid())
+  code        String   @unique
   name        String
   description String?
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  warehouses  Warehouse[]
-  skus        Sku[]
-}
-
-/// Physical warehouse belonging to a client.
-model Warehouse {
-  id          String   @id @default(cuid())
-  clientId    String
-  code        String
-  name        String
-  address     String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  zones       Zone[]
+  warehouses             Warehouse[]
+  skus                   Sku[]
+  inventoryBalances      InventoryBalance[]
+  inventoryTransactions  InventoryTransaction[]
+  inboundOrders          InboundOrder[]
+  outboundOrders         OutboundOrder[]
+}
+
+/// Physical warehouse belonging to a client.
+model Warehouse {
+  id        String   @id @default(cuid())
+  clientId  String
+  code      String
+  name      String
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  zones          Zone[]
+  inboundOrders  InboundOrder[]
+  outboundOrders OutboundOrder[]
 
   @@unique([clientId, code])
   @@index([clientId])
@@ -41,17 +47,17 @@ model Warehouse {
 
 /// Logical area within a warehouse (e.g. receiving, storage, shipping).
 model Zone {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   warehouseId String
   code        String
   name        String
   description String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
-  bins        Bin[]
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  bins      Bin[]
 
   @@unique([warehouseId, code])
   @@index([warehouseId])
@@ -68,7 +74,9 @@ model Bin {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  zone      Zone     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  zone                  Zone                   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  inventoryBalances     InventoryBalance[]
+  inventoryTransactions InventoryTransaction[]
 
   @@unique([zoneId, code])
   @@index([zoneId])
@@ -87,8 +95,169 @@ model Sku {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client                Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  inventoryBalances     InventoryBalance[]
+  inventoryTransactions InventoryTransaction[]
+  inboundOrderLines     InboundOrderLine[]
+  outboundOrderLines    OutboundOrderLine[]
 
   @@unique([clientId, code])
   @@index([clientId])
+}
+
+enum InventoryTxnType {
+  INBOUND
+  OUTBOUND
+  TRANSFER_OUT
+  TRANSFER_IN
+  ADJUSTMENT
+}
+
+/// Append-only inventory ledger (流水帳). Every stock change writes here first.
+model InventoryTransaction {
+  id              String          @id @default(cuid())
+  clientId        String
+  type            InventoryTxnType
+  skuId           String
+  binId           String
+  /// Lot / batch number. Empty string means untracked lot.
+  lotNumber       String          @default("")
+  /// Expiry date (ED). Null means no expiry tracked.
+  expiryDate      DateTime?       @db.Date
+  /// Manufacture date (MD). Null means no MD tracked.
+  manufactureDate DateTime?       @db.Date
+  /// Signed quantity: positive increases on-hand, negative decreases.
+  quantity        Decimal         @db.Decimal(18, 4)
+  referenceType   String?
+  referenceId     String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sku    Sku    @relation(fields: [skuId], references: [id], onDelete: Restrict)
+  bin    Bin    @relation(fields: [binId], references: [id], onDelete: Restrict)
+
+  @@index([clientId, createdAt])
+  @@index([skuId, binId])
+  @@index([referenceType, referenceId])
+}
+
+/// Current on-hand balance per SKU + Lot + ED + MD + Bin (即時庫存結存).
+model InventoryBalance {
+  id              String    @id @default(cuid())
+  clientId        String
+  skuId           String
+  binId           String
+  lotNumber       String    @default("")
+  expiryDate      DateTime? @db.Date
+  manufactureDate DateTime? @db.Date
+  quantity        Decimal   @db.Decimal(18, 4)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sku    Sku    @relation(fields: [skuId], references: [id], onDelete: Restrict)
+  bin    Bin    @relation(fields: [binId], references: [id], onDelete: Restrict)
+
+  /// Application + DB unique key for the inventory dimension
+  /// (nullable dates coalesced in migration SQL for true uniqueness).
+  @@index([clientId, skuId])
+  @@index([skuId, expiryDate])
+  @@index([binId])
+}
+
+enum InboundOrderStatus {
+  DRAFT
+  OPEN
+  RECEIVING
+  COMPLETED
+  CANCELLED
+}
+
+/// ASN / inbound receipt order.
+model InboundOrder {
+  id          String             @id @default(cuid())
+  clientId    String
+  warehouseId String
+  asnNumber   String
+  status      InboundOrderStatus @default(DRAFT)
+  notes       String?
+  expectedAt  DateTime?
+  completedAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  client    Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  warehouse Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  lines     InboundOrderLine[]
+
+  @@unique([clientId, asnNumber])
+  @@index([warehouseId])
+  @@index([status])
+}
+
+model InboundOrderLine {
+  id              String    @id @default(cuid())
+  inboundOrderId  String
+  skuId           String
+  expectedQty     Decimal   @db.Decimal(18, 4)
+  receivedQty     Decimal   @default(0) @db.Decimal(18, 4)
+  lotNumber       String    @default("")
+  expiryDate      DateTime? @db.Date
+  manufactureDate DateTime? @db.Date
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  inboundOrder InboundOrder @relation(fields: [inboundOrderId], references: [id], onDelete: Cascade)
+  sku          Sku          @relation(fields: [skuId], references: [id], onDelete: Restrict)
+
+  @@index([inboundOrderId])
+  @@index([skuId])
+}
+
+enum OutboundOrderStatus {
+  DRAFT
+  OPEN
+  SHIPPING
+  SHIPPED
+  CANCELLED
+}
+
+/// Outbound / shipping order.
+model OutboundOrder {
+  id          String              @id @default(cuid())
+  clientId    String
+  warehouseId String
+  orderNumber String
+  status      OutboundOrderStatus @default(DRAFT)
+  notes       String?
+  shippedAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  client    Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  warehouse Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  lines     OutboundOrderLine[]
+
+  @@unique([clientId, orderNumber])
+  @@index([warehouseId])
+  @@index([status])
+}
+
+model OutboundOrderLine {
+  id              String   @id @default(cuid())
+  outboundOrderId String
+  skuId           String
+  requestedQty    Decimal  @db.Decimal(18, 4)
+  shippedQty      Decimal  @default(0) @db.Decimal(18, 4)
+  /// Optional lot preference; when set, FIFO is limited to this lot.
+  lotNumber       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  outboundOrder OutboundOrder @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
+  sku           Sku           @relation(fields: [skuId], references: [id], onDelete: Restrict)
+
+  @@index([outboundOrderId])
+  @@index([skuId])
 }
