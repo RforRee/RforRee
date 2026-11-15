@@ -7,12 +7,15 @@ import express, {
 import helmet from "helmet";
 import morgan from "morgan";
 import { isAppError } from "./errors.js";
+import { apiKeysRouter } from "./routes/apiKeys.js";
 import { binsRouter } from "./routes/bins.js";
 import { clientsRouter } from "./routes/clients.js";
+import { externalRouter } from "./routes/external.js";
 import { inboundOrdersRouter } from "./routes/inboundOrders.js";
 import { inventoryRouter } from "./routes/inventory.js";
 import { outboundOrdersRouter } from "./routes/outboundOrders.js";
 import { skusRouter } from "./routes/skus.js";
+import { syncRouter } from "./routes/sync.js";
 import { warehousesRouter } from "./routes/warehouses.js";
 import { zonesRouter } from "./routes/zones.js";
 
@@ -36,6 +39,9 @@ export function createApp() {
   app.use("/api/inventory", inventoryRouter);
   app.use("/api/inbound-orders", inboundOrdersRouter);
   app.use("/api/outbound-orders", outboundOrdersRouter);
+  app.use("/api/api-keys", apiKeysRouter);
+  app.use("/api/sync", syncRouter);
+  app.use("/api/v1/external", externalRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: "Route not found" });
