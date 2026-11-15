@@ -6,8 +6,12 @@ import express, {
 } from "express";
 import helmet from "helmet";
 import morgan from "morgan";
+import { isAppError } from "./errors.js";
 import { binsRouter } from "./routes/bins.js";
 import { clientsRouter } from "./routes/clients.js";
+import { inboundOrdersRouter } from "./routes/inboundOrders.js";
+import { inventoryRouter } from "./routes/inventory.js";
+import { outboundOrdersRouter } from "./routes/outboundOrders.js";
 import { skusRouter } from "./routes/skus.js";
 import { warehousesRouter } from "./routes/warehouses.js";
 import { zonesRouter } from "./routes/zones.js";
@@ -29,6 +33,9 @@ export function createApp() {
   app.use("/api/zones", zonesRouter);
   app.use("/api/bins", binsRouter);
   app.use("/api/skus", skusRouter);
+  app.use("/api/inventory", inventoryRouter);
+  app.use("/api/inbound-orders", inboundOrdersRouter);
+  app.use("/api/outbound-orders", outboundOrdersRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ error: "Route not found" });
@@ -36,6 +43,13 @@ export function createApp() {
 
   app.use(
     (err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+      if (isAppError(err)) {
+        res.status(err.statusCode).json({
+          error: err.message,
+          code: err.code,
+        });
+        return;
+      }
       console.error(err);
       res.status(500).json({ error: "Internal server error" });
     },
